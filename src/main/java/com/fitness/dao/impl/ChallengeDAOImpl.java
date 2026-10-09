@@ -1,0 +1,34 @@
+package com.fitness.dao.impl;
+
+import java.sql.*;
+import java.util.*;
+import com.fitness.dao.ChallengeDAO;
+import com.fitness.model.Challenge;
+import com.fitness.util.DBConnectionManager;
+
+public class ChallengeDAOImpl extends JdbcSupport implements ChallengeDAO {
+    private final DBConnectionManager db=DBConnectionManager.getInstance();
+    private Challenge map(ResultSet r)throws SQLException{Challenge c=new Challenge();c.setId(r.getLong("id"));c.setTitle(r.getString("title"));c.setDescription(r.getString("description"));c.setStartDate(r.getDate("start_date").toLocalDate());c.setEndDate(r.getDate("end_date").toLocalDate());c.setTargetValue(r.getDouble("target_value"));c.setStatus(r.getString("status"));return c;}
+    @Override public Optional<Challenge> findById(Long id){try(Connection c=db.getConnection();PreparedStatement p=c.prepareStatement("SELECT * FROM challenges WHERE id=?")){p.setLong(1,id);try(ResultSet r=p.executeQuery()){return r.next()?Optional.of(map(r)):Optional.empty();}}catch(SQLException e){throw failure("Find challenge",e);}}
+    @Override public List<Challenge> findAll(){return list("SELECT c.*,0 progress,0 participant_count,0 joined FROM challenges c ORDER BY c.start_date DESC",0);}
+    @Override public List<Challenge> findForUser(long userId){String sql="SELECT c.*,COALESCE(cp.progress,0) progress,(SELECT COUNT(*) FROM challenge_participants x WHERE x.challenge_id=c.id) participant_count,CASE WHEN cp.user_id IS NULL THEN 0 ELSE 1 END joined FROM challenges c LEFT JOIN challenge_participants cp ON cp.challenge_id=c.id AND cp.user_id=? ORDER BY c.end_date";return list(sql,userId);}
+    private List<Challenge> list(String sql,long userId){List<Challenge> list=new ArrayList<>();try(Connection c=db.getConnection();PreparedStatement p=c.prepareStatement(sql)){if(sql.contains("user_id=?"))p.setLong(1,userId);try(ResultSet r=p.executeQuery()){while(r.next()){Challenge value=map(r);value.setProgress(r.getDouble("progress"));value.setParticipantCount(r.getInt("participant_count"));value.setJoined(r.getBoolean("joined"));list.add(value);}}return list;}catch(SQLException e){throw failure("List challenges",e);}}
+    @Override public Challenge save(Challenge value){String sql="INSERT INTO challenges(title,description,start_date,end_date,target_value,status) VALUES(?,?,?,?,?,?)";try(Connection c=db.getConnection();PreparedStatement p=c.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS)){bind(p,value);p.executeUpdate();try(ResultSet r=p.getGeneratedKeys()){if(r.next())value.setId(r.getLong(1));}return value;}catch(SQLException e){throw failure("Create challenge",e);}}
+    private void bind(PreparedStatement p,Challenge v)throws SQLException{p.setString(1,v.getTitle());p.setString(2,v.getDescription());p.setDate(3,java.sql.Date.valueOf(v.getStartDate()));p.setDate(4,java.sql.Date.valueOf(v.getEndDate()));p.setDouble(5,v.getTargetValue());p.setString(6,v.getStatus());}
+    @Override public boolean update(Challenge v){try(Connection c=db.getConnection();PreparedStatement p=c.prepareStatement("UPDATE challenges SET title=?,description=?,start_date=?,end_date=?,target_value=?,status=? WHERE id=?")){bind(p,v);p.setLong(7,v.getId());return p.executeUpdate()>0;}catch(SQLException e){throw failure("Update challenge",e);}}
+    @Override public boolean delete(Long id){try(Connection c=db.getConnection();PreparedStatement p=c.prepareStatement("DELETE FROM challenges WHERE id=?")){p.setLong(1,id);return p.executeUpdate()>0;}catch(SQLException e){throw failure("Delete challenge",e);}}
+    @Override public void join(long challengeId,long userId){
+        String join="INSERT INTO challenge_participants(challenge_id,user_id,progress) VALUES(?,?,0)";
+        try(Connection c=db.getConnection()){
+            c.setAutoCommit(false);
+            try{try(PreparedStatement p=c.prepareStatement(join)){p.setLong(1,challengeId);p.setLong(2,userId);p.executeUpdate();}
+                try(PreparedStatement p=c.prepareStatement("INSERT INTO activity_log(user_id,action,details) VALUES(?,?,?)")){p.setLong(1,userId);p.setString(2,"CHALLENGE_JOINED");p.setString(3,"Joined challenge #"+challengeId);p.executeUpdate();}c.commit();
+            }catch(SQLException exception){c.rollback();throw exception;}finally{c.setAutoCommit(true);}
+        }catch(SQLException e){throw failure("Join challenge transaction rolled back",e);}
+    }
+    @Override public boolean leave(long challengeId,long userId){try(Connection c=db.getConnection();PreparedStatement p=c.prepareStatement("DELETE FROM challenge_participants WHERE challenge_id=? AND user_id=?")){p.setLong(1,challengeId);p.setLong(2,userId);return p.executeUpdate()>0;}catch(SQLException e){throw failure("Leave challenge",e);}}
+    @Override public List<Map<String,Object>> leaderboard(long challengeId){String sql="SELECT u.id,u.name,cp.progress,c.target_value FROM challenge_participants cp JOIN users u ON u.id=cp.user_id JOIN challenges c ON c.id=cp.challenge_id WHERE cp.challenge_id=? ORDER BY cp.progress DESC,u.name LIMIT 100";List<Map<String,Object>> rows=new ArrayList<>();try(Connection c=db.getConnection();PreparedStatement p=c.prepareStatement(sql)){p.setLong(1,challengeId);try(ResultSet r=p.executeQuery()){while(r.next()){Map<String,Object> row=new LinkedHashMap<>();row.put("userId",r.getLong("id"));row.put("name",r.getString("name"));row.put("progress",r.getDouble("progress"));row.put("target",r.getDouble("target_value"));rows.add(row);}}rows.sort(Comparator.comparingDouble((Map<String,Object> row)->((Number)row.get("progress")).doubleValue()).reversed());return rows;}catch(SQLException e){throw failure("Load leaderboard",e);}}
+    @Override public long participantCount(){try(Connection c=db.getConnection();PreparedStatement p=c.prepareStatement("SELECT COUNT(*) FROM challenge_participants");ResultSet r=p.executeQuery()){r.next();return r.getLong(1);}catch(SQLException e){throw failure("Count participants",e);}}
+    @Override public void updateProgressForUser(long userId){String sql="UPDATE challenge_participants cp JOIN challenges c ON c.id=cp.challenge_id SET cp.progress=COALESCE((SELECT SUM(w.calories) FROM workouts w WHERE w.user_id=cp.user_id AND w.workout_date BETWEEN c.start_date AND c.end_date),0) WHERE cp.user_id=?";try(Connection c=db.getConnection();PreparedStatement p=c.prepareStatement(sql)){p.setLong(1,userId);p.executeUpdate();}catch(SQLException e){throw failure("Update challenge progress",e);}}
+    @Override public void archiveExpired(){try(Connection c=db.getConnection();PreparedStatement p=c.prepareStatement("UPDATE challenges SET status='COMPLETED' WHERE end_date<CURDATE() AND status='ACTIVE'")){p.executeUpdate();}catch(SQLException e){throw failure("Archive expired challenges",e);}}
+}

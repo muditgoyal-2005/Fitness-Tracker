@@ -1,0 +1,78 @@
+CREATE DATABASE IF NOT EXISTS fitness_tracker CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE fitness_tracker;
+
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(190) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('ADMIN','USER') NOT NULL DEFAULT 'USER',
+  weight_kg DECIMAL(6,2) NOT NULL DEFAULT 70.00,
+  height_cm DECIMAL(6,2) NOT NULL DEFAULT 170.00,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS workouts (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  type VARCHAR(30) NOT NULL,
+  duration_min INT NOT NULL,
+  intensity VARCHAR(20) NOT NULL,
+  calories DECIMAL(9,2) NOT NULL,
+  workout_date DATE NOT NULL,
+  notes VARCHAR(500),
+  CONSTRAINT fk_workout_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_workout_user_date (user_id, workout_date)
+);
+CREATE TABLE IF NOT EXISTS goals (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  goal_type VARCHAR(80) NOT NULL,
+  target_value DECIMAL(10,2) NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  CONSTRAINT fk_goal_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS challenges (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(140) NOT NULL,
+  description TEXT NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  target_value DECIMAL(10,2) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
+);
+CREATE TABLE IF NOT EXISTS challenge_participants (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  challenge_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  progress DECIMAL(10,2) NOT NULL DEFAULT 0,
+  joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_participant_challenge FOREIGN KEY (challenge_id) REFERENCES challenges(id) ON DELETE CASCADE,
+  CONSTRAINT fk_participant_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_challenge_user (challenge_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS fitness_content (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  title VARCHAR(160) NOT NULL,
+  body TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_by BIGINT NULL,
+  CONSTRAINT fk_content_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_content_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE TABLE IF NOT EXISTS system_settings (
+  setting_key VARCHAR(100) PRIMARY KEY,
+  setting_value VARCHAR(500) NOT NULL
+);
+CREATE TABLE IF NOT EXISTS activity_log (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NULL,
+  action VARCHAR(100) NOT NULL,
+  details VARCHAR(1000) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_activity_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_activity_created (created_at)
+);

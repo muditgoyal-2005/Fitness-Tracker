@@ -1,0 +1,44 @@
+<%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111412"><title><c:out value="${pageTitle}" default="Pulse / Athlete HUD" /></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="${pageContext.request.contextPath}/css/base.css">
+  <c:choose><c:when test="${sessionScope.user.role == 'ADMIN'}"><link rel="stylesheet" href="${pageContext.request.contextPath}/css/admin.css"></c:when><c:otherwise><link rel="stylesheet" href="${pageContext.request.contextPath}/css/user.css"></c:otherwise></c:choose>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="app-shell">
+<div class="app-frame">
+  <aside class="side-nav" aria-label="Main navigation">
+    <a class="brand-mark" href="${pageContext.request.contextPath}/dashboard" aria-label="Pulse dashboard"><span class="brand-icon">P</span><span>PULSE<span class="brand-slash"> / </span>HUD</span></a>
+    <div class="nav-label">WORKSPACE</div>
+    <c:choose>
+      <c:when test="${sessionScope.user.role == 'ADMIN'}">
+        <a class="nav-link" href="${pageContext.request.contextPath}/admin/dashboard"><i data-lucide="layout-dashboard"></i>Overview</a>
+        <a class="nav-link" href="${pageContext.request.contextPath}/admin/users"><i data-lucide="users"></i>Members</a>
+        <a class="nav-link" href="${pageContext.request.contextPath}/admin/content"><i data-lucide="inbox"></i>Review queue</a>
+        <a class="nav-link" href="${pageContext.request.contextPath}/admin/settings"><i data-lucide="sliders-horizontal"></i>System</a>
+      </c:when>
+      <c:otherwise>
+        <a class="nav-link" href="${pageContext.request.contextPath}/dashboard"><i data-lucide="layout-dashboard"></i>Today</a>
+        <a class="nav-link" href="${pageContext.request.contextPath}/workouts"><i data-lucide="activity"></i>Workouts</a>
+        <a class="nav-link" href="${pageContext.request.contextPath}/goals"><i data-lucide="target"></i>Goals</a>
+        <a class="nav-link" href="${pageContext.request.contextPath}/challenges"><i data-lucide="trophy"></i>Challenges</a>
+        <a class="nav-link" href="${pageContext.request.contextPath}/content"><i data-lucide="notebook-pen"></i>Community</a>
+        <a class="nav-link" href="${pageContext.request.contextPath}/profile"><i data-lucide="user-round"></i>Profile</a>
+      </c:otherwise>
+    </c:choose>
+    <div class="nav-bottom"><span class="status-dot"></span> SYSTEM ONLINE <span class="nav-version">v1.0</span></div>
+  </aside>
+  <div class="app-workspace">
+    <header class="topbar"><div class="topbar-meta"><span class="live-mark"></span><span>TRAINING CONSOLE</span><span class="topbar-divider">/</span><span class="topbar-date"><i data-lucide="calendar-days"></i><c:out value="${pageTitle}" default="ACTIVE SESSION" /></span></div>
+      <div class="topbar-actions"><button class="icon-button" id="themeToggle" type="button" aria-label="Toggle light theme" title="Toggle theme"><i data-lucide="sun-moon"></i></button><span class="user-chip"><span class="avatar-dot"><c:out value="${fn:substring(sessionScope.user.name,0,1)}" /></span><span><strong><c:out value="${sessionScope.user.name}" /></strong><small><c:out value="${sessionScope.user.role}" /></small></span></span>
+        <form method="post" action="${pageContext.request.contextPath}/auth/logout"><input type="hidden" name="_csrf" value="${csrfToken}"><button class="icon-button" type="submit" aria-label="Sign out" title="Sign out"><i data-lucide="log-out"></i></button></form>
+      </div>
+    </header>
+    <main class="app-main">
+      <c:if test="${not empty flashMessage}"><div class="toast toast-${flashKind}" role="status"><i data-lucide="${flashKind == 'error' ? 'circle-alert' : 'circle-check'}"></i><span><c:out value="${flashMessage}" /></span><button class="toast-close" type="button" aria-label="Dismiss"><i data-lucide="x"></i></button></div></c:if>
